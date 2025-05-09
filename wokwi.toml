@@ -1,0 +1,5 @@
+[wokwi]
+version = 1
+gdbServerPort = 3333
+elf = "target/xtensa-esp32-espidf/debug/esp32-phone-os"
+firmware = "target/xtensa-esp32-espidf/debug/esp32-phone-os"

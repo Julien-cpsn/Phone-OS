@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "author": "Julien CAPOSIENA",
+  "editor": "wokwi",
+  "parts": [
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": -300,
+      "left": -50,
+      "attrs": { "flashSize": "16", "psramSize": "4" }
+    },
+    {
+      "type": "board-ili9341-cap-touch",
+      "id": "lcd1",
+      "top": -350,
+      "left": -400,
+      "rotate": 0,
+      "attrs": { "flipVertical": "0", "flipHorizontal": "1" }
+    }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+    [ "esp:12", "lcd1:CS", "green", [ "h-48.18", "v59.43" ] ],
+    [ "esp:4", "lcd1:RST", "yellow", [ "v0" ] ],
+    [ "esp:2", "lcd1:D/C", "purple", [ "h-21.57", "v47.08" ] ],
+    [ "esp:18", "lcd1:SCK", "blue", [ "h39.74", "v-150.63", "h-211.92", "v-1.93" ] ],
+    [ "esp:19", "lcd1:MISO", "red", [ "h17.54", "v-98.17", "h-162.68", "v97.03" ] ],
+    [ "esp:23", "lcd1:MOSI", "white", [ "h25.67", "v-128.97", "h-182.01", "v129.83" ] ],
+    [ "esp:GND.1", "lcd1:GND", "black", [ "v-0.77", "h-35.66", "v130" ] ],
+    [ "esp:3V3.1", "lcd1:VCC", "limegreen", [ "h-28.99", "v115.64" ] ],
+    [ "esp:22", "lcd1:SCL", "yellow", [ "h48", "v163.2", "h192" ] ],
+    [ "esp:21", "lcd1:SDA", "cyan", [ "h38.4", "v144", "h211.2" ] ]
+  ],
+  "serialMonitor": {
+    "display": "terminal",
+    "convertEol": true
+  },
+  "dependencies": {}
+}
