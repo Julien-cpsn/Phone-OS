@@ -10,13 +10,6 @@ rust-version = "1.77"
 name = "esp32-phone-os"
 harness = false # do not use the built in cargo test harness -> resolve rust-analyzer errors
 
-[profile.release]
-opt-level = "s"
-
-[profile.dev]
-debug = true    # Symbols are nice and they don't increase the size on Flash
-opt-level = "z"
-
 [dependencies]
 log = "0.4"
 esp-idf-svc = { version = "0.51", features = ["critical-section", "embassy-time-driver", "embassy-sync", "nightly"] }
@@ -27,6 +20,7 @@ display-interface-spi = "0.5.0"
 ili9341 = "0.6.0"
 
 anyhow = "1.0.98"
+strum = { version = "0.27.1", default-features = false, features = ["std", "derive"]}
 
 [build-dependencies]
 embuild = "0.33"

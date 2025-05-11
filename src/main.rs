@@ -2,7 +2,8 @@ pub mod phone;
 pub mod ui;
 pub mod events;
 pub mod drivers;
-mod state;
+pub mod state;
+pub mod apps;
 
 use display_interface_spi::SPIInterface;
 use esp_idf_svc::eventloop::{EspSystemEventLoop};
@@ -87,13 +88,13 @@ fn main() -> anyhow::Result<()> {
     let backend = EmbeddedBackend::new(&mut display, EmbeddedBackendConfig::default());
     let mut terminal = Terminal::new(backend)?;
 
-    terminal.draw(|frame| phone.draw_homepage(frame))?;
+    terminal.draw(|frame| phone.render_homepage(frame))?;
 
     /* ===== WiFi ===== */
 
     let wifi = init_wifi(peripherals.modem, sysloop, nvs_default_partition)?;
 
-    phone.wifi = Some(wifi);
+    phone.app_accessible.wifi = Some(wifi);
     phone.event_loop(&mut terminal, &mut touch_controller)?;
 
     Ok(())

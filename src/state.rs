@@ -1,3 +1,4 @@
 pub enum PhoneState {
-    Homepage
+    Homepage,
+    InApp(usize)
 }
