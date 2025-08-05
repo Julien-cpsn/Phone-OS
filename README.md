@@ -6,8 +6,9 @@ Big WIP
 
 - [x] main interface
 - [x] touch buttons
-- [x] wifi
+- [x] wifi (without password)
 - [x] app template
+- [ ] touch keyboard widget
 - [ ] apps T_T (plz halp)
 
 ## Hardware
