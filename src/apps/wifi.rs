@@ -1,26 +1,30 @@
 use crate::apps::app::AppHandler;
 use crate::events::{AppEvent, CoreEvent};
-use crate::phone::AppAccessible;
-use crate::ui::widgets::clickable_button::BorderedButton;
-use esp_idf_svc::wifi::{AccessPointInfo, ClientConfiguration, Configuration};
-use mousefood::prelude::{Constraint, Frame, Layout, Line, Rect, Stylize};
-use std::any::Any;
+use crate::phone::PhoneData;
 use crate::state::PhoneState;
+use crate::ui::widgets::clickable_button::BorderedButton;
+use crate::ui::widgets::keyboard::KeyboardLayout;
+use esp_idf_svc::wifi::{AccessPointInfo, ClientConfiguration, Configuration};
+use mousefood::prelude::{Frame, Line, Rect, Stylize};
+use mousefood::ratatui::widgets::{Block, Paragraph};
 
 pub struct WifiApp {
-    pub should_scan: bool,
+    pub state: WifiAppState,
     pub access_points: Vec<AccessPointInfo>
 }
 
-pub enum WifiEvent {
-    Scan,
-    Connect(usize)
+pub enum WifiAppState {
+    Scanning,
+    DisplayingNetworks,
+    TypingPassword(usize)
 }
 
-impl AppEvent for WifiEvent {
-    fn as_any(&self) -> &dyn Any {
-        self
-    }
+#[derive(Debug)]
+pub enum WifiEvent {
+    Scan,
+    DisplayNetworks,
+    TypePassword(usize),
+    Connect(usize)
 }
 
 impl AppHandler for WifiApp {
@@ -28,80 +32,144 @@ impl AppHandler for WifiApp {
 
     fn new() -> Self where Self: Sized {
         WifiApp {
-            should_scan: true,
+            state: WifiAppState::Scanning,
             access_points: vec![],
         }
     }
     
-    fn get_name(&self) -> &'static str {
+    fn app_name(&self) -> &'static str {
         "WiFi settings"
     }
 
-    fn render(&mut self, _: &mut AppAccessible, frame: &mut Frame, area: Rect) -> anyhow::Result<Vec<(Rect, Box<dyn AppEvent>)>> {
-        let app_layout = Layout::vertical(vec![
-            Constraint::Length(1),
-            Constraint::Length(1),
-            Constraint::Fill(1),
-        ])
-            .split(area);
+    fn render(&mut self, phone_data: &mut PhoneData, frame: &mut Frame, area: Rect) -> anyhow::Result<Vec<(Rect, Box<dyn AppEvent>)>> {
+        let go_back_rect = Rect {
+            x: area.x,
+            y: area.y,
+            width: area.width,
+            height: 1,
+        };
 
-        if self.should_scan {
-            let loading = Line::raw("Loading...").centered().dark_gray();
-            frame.render_widget(loading, app_layout[2]);
+        let events: Vec<(Rect, Box<dyn AppEvent>)> = match self.state {
+            WifiAppState::Scanning => {
+                let scanning = Line::raw("Scanning...").centered().dark_gray();
+                let scanning_rect = Rect {
+                    x: area.x,
+                    y: area.y + 2,
+                    width: area.width,
+                    height: 1,
+                };
+                frame.render_widget(scanning, scanning_rect);
 
-            return Ok(vec![
-                (Rect::default(), Box::new(WifiEvent::Scan))
-            ]);
-        }
+                vec![
+                    (Rect::default(), Box::new(WifiEvent::Scan))
+                ]
+            },
+            WifiAppState::DisplayingNetworks => {
+                let go_back = Line::raw("← Go back").left_aligned().dark_gray();
+                frame.render_widget(go_back, go_back_rect);
 
-        let go_back = Line::raw("← Go back").left_aligned().dark_gray();
-        frame.render_widget(go_back, app_layout[0]);
+                let mut events: Vec<(Rect, Box<dyn AppEvent>)> = vec![
+                    (go_back_rect, Box::new(CoreEvent::GoBackToHomepage))
+                ];
 
-        let mut aps_contraints = vec![];
-        for _ in &self.access_points {
-            aps_contraints.push(Constraint::Length(3));
-        }
-        let aps_layout = Layout::vertical(aps_contraints).split(app_layout[2]);
+                for (index, ap) in self.access_points.iter().enumerate() {
+                    let ap_span = BorderedButton(ap.ssid.as_str());
+                    let rect = Rect {
+                        x: area.x,
+                        y: area.y + 2 + (3 * index as u16),
+                        width: area.width,
+                        height: 3,
+                    };
+                    frame.render_widget(ap_span, rect);
 
-        let mut events: Vec<(Rect, Box<dyn AppEvent>)> = vec![
-            (app_layout[0], Box::new(CoreEvent::GoBackToHomepage))
-        ];
+                    events.push((rect, Box::new(WifiEvent::TypePassword(index))));
+                }
 
-        for (index, ap) in self.access_points.iter().enumerate() {
-            let ap_span = BorderedButton(ap.ssid.as_str());
-            frame.render_widget(ap_span, aps_layout[index]);
+                events
+            },
+            WifiAppState::TypingPassword(index) => {
+                let go_back = Line::raw("← Go back").left_aligned().dark_gray();
+                frame.render_widget(go_back, go_back_rect);
 
-            events.push((aps_layout[index], Box::new(WifiEvent::Connect(index))));
-        }
+                let ap_name = Line::raw(self.access_points[index].ssid.as_str()).centered();
+                let ap_name_rect = Rect {
+                    x: area.x,
+                    y: area.y + 2,
+                    width: area.width,
+                    height: 1,
+                };
+                frame.render_widget(ap_name, ap_name_rect);
+
+                let password = Paragraph::new(phone_data.keyboard.as_ref().unwrap().text.clone()).block(Block::bordered());
+                let password_rect = Rect {
+                    x: area.x,
+                    y: area.y + 4,
+                    width: area.width,
+                    height: 3,
+                };
+                frame.render_widget(password, password_rect);
+
+                let connect = Paragraph::new("Connect").centered().block(Block::bordered());
+                let connect_rect = Rect {
+                    x: area.x,
+                    y: area.y + 4 + 3,
+                    width: area.width,
+                    height: 3,
+                };
+                frame.render_widget(connect, connect_rect);
+
+                vec![
+                    (go_back_rect, Box::new(WifiEvent::DisplayNetworks)),
+                    (connect_rect, Box::new(WifiEvent::Connect(index))),
+                ]
+            }
+        };
 
         Ok(events)
     }
 
-    fn handle_event(&mut self, app_accessible: &mut AppAccessible, event: &WifiEvent) -> anyhow::Result<Option<PhoneState>> {
+    fn handle_event(&mut self, phone_data: &mut PhoneData, event: &WifiEvent) -> anyhow::Result<Option<PhoneState>> {
         match event {
             WifiEvent::Scan => {
-                let wifi = app_accessible.wifi.as_mut().unwrap();
+                let wifi = phone_data.wifi.as_mut().unwrap();
                 let aps = wifi.scan()?;
                 self.access_points = aps;
-                self.should_scan = false;
+                self.state = WifiAppState::DisplayingNetworks;
             }
-            WifiEvent::Connect(index) => match &mut app_accessible.wifi {
-                None => {}
-                Some(wifi) => {
-                    wifi.set_configuration(&Configuration::Client(ClientConfiguration {
-                        ssid: self.access_points[*index].ssid.clone(),
-                        bssid: Some(self.access_points[*index].bssid.clone()),
-                        auth_method: self.access_points[*index].auth_method.unwrap_or_default(),
-                        password: Default::default(),
-                        channel: Some(self.access_points[*index].channel),
-                        ..Default::default()
-                    }))?;
-
-                    wifi.connect()?;
-
-                    return Ok(Some(PhoneState::Homepage));
-                }
+            WifiEvent::DisplayNetworks => {
+                self.state = WifiAppState::DisplayingNetworks;
+                phone_data.hide_keyboard();
             },
+            WifiEvent::TypePassword(index) => {
+                self.state = WifiAppState::TypingPassword(*index);
+                phone_data.display_keyboard(KeyboardLayout::Azerty, true);
+            },
+            WifiEvent::Connect(index) => {
+                let password_text = phone_data.keyboard.as_ref().unwrap().text.clone();
+                let password: heapless::String<64> = heapless::String::try_from(password_text.as_str()).expect("menfou");
+                phone_data.hide_keyboard();
+
+                match &mut phone_data.wifi {
+                    None => {}
+                    Some(wifi) => {
+                        wifi.set_configuration(&Configuration::Client(ClientConfiguration {
+                            ssid: self.access_points[*index].ssid.clone(),
+                            bssid: Some(self.access_points[*index].bssid.clone()),
+                            auth_method: self.access_points[*index].auth_method.unwrap_or_default(),
+                            password,
+                            channel: Some(self.access_points[*index].channel),
+                            ..Default::default()
+                        }))?;
+
+                        wifi.connect()?;
+
+                        self.state = WifiAppState::Scanning;
+                        self.access_points = vec![];
+
+                        return Ok(Some(PhoneState::Homepage));
+                    }
+                }
+            }
         };
 
 

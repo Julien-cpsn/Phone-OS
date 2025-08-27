@@ -50,7 +50,7 @@ fn main() -> anyhow::Result<()> {
     let cs = peripherals.pins.gpio12;
 
     let spi_config = Config::new()
-        .baudrate(MegaHertz::from(20).into())
+        .baudrate(MegaHertz::from(33).into())
         .data_mode(MODE_0);
 
     let spi_device = SpiDeviceDriver::new_single(
@@ -94,7 +94,7 @@ fn main() -> anyhow::Result<()> {
 
     let wifi = init_wifi(peripherals.modem, sysloop, nvs_default_partition)?;
 
-    phone.app_accessible.wifi = Some(wifi);
+    phone.phone_data.wifi = Some(wifi);
     phone.event_loop(&mut terminal, &mut touch_controller)?;
 
     Ok(())

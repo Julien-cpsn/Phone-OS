@@ -13,7 +13,7 @@ impl<'a> Phone<'a> {
             .split(area);
 
         for app in &self.apps {
-            let bordered_button = BorderedButton(app.get_name());
+            let bordered_button = BorderedButton(app.app_name());
             frame.render_widget(bordered_button, apps_layout[0]);
         }
         
@@ -24,17 +24,17 @@ impl<'a> Phone<'a> {
 
     pub fn render_homepage(&mut self, frame: &mut Frame) {
         let logo = Paragraph::new(vec![
-            "_____  _".into(),
+            " _____  _".into(),
             "|  __ \\| |".into(),
             "| |__) | |__   ___  _ __   ___".into(),
             "|  ___/| '_ \\ / _ \\| '_ \\ / _ \\".into(),
             "| |    | | | | (_) | | | |  __/".into(),
-            "|_|___ |_|_|_|\\___/|_| |_|\\___|".into(),
-            "/ __ \\ / ____|".into(),
-            "| |  | | (___".into(),
-            "| |  | |\\__ \\".into(),
-            "| |__| |___) |".into(),
-            "\\____/|_____/".into(),
+            "|_|__  |_|_|_|\\___/|_| |_|\\___|".into(),
+            "/  _ \\  / ___|".into(),
+            "| | | || (__".into(),
+            "| | | | \\__ \\".into(),
+            "| |_| | ___) |".into(),
+            "\\____/ |____/".into(),
             "Loading...".into(),
         ]);
         frame.render_widget(logo, frame.area());

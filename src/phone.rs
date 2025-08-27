@@ -7,17 +7,19 @@ use esp_idf_svc::wifi::EspWifi;
 use mousefood::prelude::{Backend, Frame, Rect, Terminal};
 use std::thread::sleep;
 use std::time::Duration;
+use crate::ui::widgets::keyboard::Keyboard;
 
 pub struct Phone<'a> {
     pub state: PhoneState,
     pub should_wait_touch: bool,
-    pub app_accessible: AppAccessible<'a>,
+    pub phone_data: PhoneData<'a>,
     pub apps: Vec<Box<dyn App>>,
     pub current_events: Vec<(Rect, Box<dyn AppEvent>)>,
 }
 
-pub struct AppAccessible<'a> {
+pub struct PhoneData<'a> {
     pub wifi: Option<EspWifi<'a>>,
+    pub keyboard: Option<Keyboard>
 }
 
 impl<'a> Phone<'a> {
@@ -25,8 +27,9 @@ impl<'a> Phone<'a> {
         Phone {
             state: PhoneState::Homepage,
             should_wait_touch: true,
-            app_accessible: AppAccessible {
+            phone_data: PhoneData {
                 wifi: None,
+                keyboard: None,
             },
             apps: vec![
                 AppImpl::<WifiApp>::new_boxed()

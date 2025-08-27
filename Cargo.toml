@@ -19,11 +19,13 @@ embedded-graphics = "0.8.1"
 display-interface-spi = "0.5.0"
 ili9341 = "0.6.0"
 
-anyhow = "1.0.98"
-strum = { version = "0.27.1", default-features = false, features = ["std", "derive"]}
+anyhow = "1.0.99"
+strum = { version = "0.27.2", default-features = false, features = ["std", "derive"]}
+once_cell = "1.21.3"
+heapless = "0.8.0"
 
 [build-dependencies]
-embuild = "0.33"
+embuild = "0.33.1"
 
 [package.metadata.esp-idf]
 # Enables PSRAM support in esp-idf-sys

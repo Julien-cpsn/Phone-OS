@@ -3,3 +3,8 @@ version = 1
 gdbServerPort = 3333
 elf = "target/xtensa-esp32-espidf/debug/esp32-phone-os"
 firmware = "target/xtensa-esp32-espidf/debug/esp32-phone-os"
+
+# Forward http://localhost:9080 to port 80 on the simulated ESP32:
+[[net.forward]]
+from = "localhost:9080"
+to = "target:80"
