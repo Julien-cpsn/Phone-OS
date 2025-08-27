@@ -8,6 +8,7 @@ Big WIP
 - [x] touch buttons
 - [x] wifi
 - [x] app template
+- [x] touch keyboard widget
 - [ ] apps T_T (plz halp)
 
 ## Hardware
@@ -26,9 +27,3 @@ Apps
 Wifi settings
 
 ![](./demo/wifi.png)
-
-## Compile
-
-```shell
-export PATH="/nix/store/nwwzjfghz35xjhpxbm4g06dmibqf21gv-python3-3.12.8-env/bin/python:$PATH"
-```
