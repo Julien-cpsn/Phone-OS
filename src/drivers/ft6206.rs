@@ -35,13 +35,13 @@ pub enum TouchGesture {
     ZoomOut,
 }
 
-pub struct FT6206<'a> {
-    i2c: I2cDriver<'a>,
+pub struct FT6206 {
+    i2c: I2cDriver<'static>,
 }
 
-impl<'a> FT6206<'a> {
+impl FT6206 {
     pub fn new(i2c: I2C0, sda_i2c: Gpio21, scl: Gpio22) -> Result<Self, anyhow::Error> {
-        let i2c_config = I2cConfig::new().baudrate(KiloHertz::from(100).into());
+        let i2c_config = I2cConfig::new().baudrate(KiloHertz::from(400).into());
         let i2c_driver = I2cDriver::new(
             i2c,
             sda_i2c,

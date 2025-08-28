@@ -1,4 +1,5 @@
 use mousefood::prelude::{Buffer, Line, Rect, Stylize, Widget};
+use mousefood::prelude::symbols::border::ROUNDED;
 use mousefood::ratatui::widgets::{Block, Borders};
 
 pub struct BorderedButton<'a>(pub &'a str);
@@ -6,7 +7,8 @@ pub struct BorderedButton<'a>(pub &'a str);
 impl<'a> Widget for BorderedButton<'a> {
     fn render(self, area: Rect, buf: &mut Buffer) where Self: Sized {
         let block = Block::default()
-            .borders(Borders::ALL);
+            .borders(Borders::ALL)
+            .border_set(ROUNDED);
         
         let inner = block.inner(area);
         

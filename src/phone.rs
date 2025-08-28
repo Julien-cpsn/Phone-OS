@@ -1,82 +1,159 @@
-use crate::apps::app::{App, AppImpl};
-use crate::apps::wifi::WifiApp;
-use crate::drivers::ft6206::FT6206;
-use crate::events::AppEvent;
-use crate::state::PhoneState;
-use esp_idf_svc::wifi::EspWifi;
-use mousefood::prelude::{Backend, Frame, Rect, Terminal};
+use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
+use crossbeam_channel::bounded;
+use esp_idf_svc::sntp::{EspSntp, SyncStatus};
+use crate::apps::app::{App, AppImpl};
+use crate::apps::wifi::WifiApp;
+use crate::events::EventType;
+use crate::drivers::ft6206::FT6206;
+use crate::state::PhoneState;
 use crate::ui::widgets::keyboard::Keyboard;
+use esp_idf_svc::wifi::EspWifi;
+use log::{info};
+use mousefood::prelude::{Backend, Frame, Terminal};
 
-pub struct Phone<'a> {
+pub struct Phone {
     pub state: PhoneState,
     pub should_wait_touch: bool,
-    pub phone_data: PhoneData<'a>,
-    pub apps: Vec<Box<dyn App>>,
-    pub current_events: Vec<(Rect, Box<dyn AppEvent>)>,
+    pub phone_data: PhoneData,
+    pub apps: Vec<Box<dyn App + 'static>>,
 }
 
-pub struct PhoneData<'a> {
-    pub wifi: Option<EspWifi<'a>>,
+pub struct PhoneData {
+    pub wifi: Option<EspWifi<'static>>,
+    pub wifi_state: WifiState,
+    pub ntp: Option<EspSntp<'static>>,
     pub keyboard: Option<Keyboard>
 }
 
-impl<'a> Phone<'a> {
+#[derive(PartialEq)]
+pub enum WifiState {
+    NotInitialized,
+    NotConnected,
+    Connecting,
+    Connected(String),
+}
+
+impl Phone {
     pub fn new() -> Self {
         Phone {
             state: PhoneState::Homepage,
             should_wait_touch: true,
             phone_data: PhoneData {
                 wifi: None,
+                wifi_state: WifiState::NotInitialized,
+                ntp: None,
                 keyboard: None,
             },
             apps: vec![
                 AppImpl::<WifiApp>::new_boxed()
             ],
-            current_events: vec![],
         }
     }
-    
-    pub fn event_loop<B: Backend>(&mut self, terminal: &mut Terminal<B>, touch_controller: &mut FT6206) -> anyhow::Result<()> {
-        terminal.draw(|frame| {
-            if let Ok(current_events) = self.draw(frame) {
-                self.current_events = current_events;
+
+    pub fn event_loop<B: Backend>(&mut self, mut terminal: Terminal<B>, mut touch_controller: FT6206) -> anyhow::Result<()> {
+        let (touch_sender, touch_receiver) = bounded(3);
+
+        thread::spawn(move || {
+            loop {
+                let touches = touch_controller.read_touches().unwrap();
+
+                if !touches.is_empty() {
+                    touch_sender.send(touches).unwrap();
+                    sleep(Duration::from_millis(75));
+                }
+
+                sleep(Duration::from_millis(25));
             }
+        });
+
+        let mut current_events = None;
+
+        terminal.draw(|frame| {
+            current_events = self.handle_draw(frame)
         })?;
 
         loop {
-            if self.should_wait_touch {
-                let touches = touch_controller.read_touches()?;
+            self.system_check()?;
 
-                if let Some(touch) = self.format_events(&touches) {
-                    self.handle_touch(touch)?;
-                    terminal.draw(|frame| self.handle_draw(frame))?;
+            if let Some(events) = &current_events {
+                let state = match &events {
+                    EventType::Auto(event) => {
+                        self.handle_auto_event(event)?
+                    },
+                    EventType::List(clickable_areas) => {
+                        if let Ok(touches) = touch_receiver.try_recv() {
+                            let state = match self.format_touches(&touches) {
+                                None => None,
+                                Some(touch) => self.handle_touch(touch, clickable_areas)?
+                            };
+
+                            state
+                        }
+                        else {
+                            None
+                        }
+                    }
+                };
+
+                if let Some(state) = state {
+                    self.state = state;
                 }
             }
-            else {
-                self.handle_first_event()?;
-                terminal.draw(|frame| self.handle_draw(frame))?;
-                sleep(Duration::from_millis(250));
-            }
+
+            terminal.draw(|frame| {
+                current_events = self.handle_draw(frame)
+            })?;
+
+            sleep(Duration::from_millis(100));
+        }
+    }
+    pub fn handle_draw(&mut self, frame: &mut Frame) -> Option<EventType> {
+        info!("Redraw");
+
+        if let Ok(current_events) = self.draw(frame) {
+            Some(current_events)
+        }
+        else {
+            None
         }
     }
 
-    fn handle_draw(&mut self, frame: &mut Frame) {
-        if let Ok(current_events) = self.draw(frame) {
-            if let Some((area, _)) = current_events.first() {
-                if area.x == 0 && area.y == 0 && area.width == 0 && area.height == 0 {
-                    self.should_wait_touch = false;
-                }
-                else { 
-                    self.should_wait_touch = true;
-                }
+    pub fn system_check(&mut self) -> anyhow::Result<()> {
+        let wifi_state = match &self.phone_data.wifi {
+            None => WifiState::NotInitialized,
+            Some(wifi) => match wifi.get_configuration() {
+                Err(_) => WifiState::NotConnected,
+                Ok(wifi_configuration) => match wifi_configuration.as_client_conf_ref() {
+                    None => WifiState::NotConnected,
+                    Some(wifi_configuration) => match wifi_configuration.ssid.is_empty() {
+                        true => WifiState::NotConnected,
+                        false => match wifi.is_connected() {
+                            Ok(connected) => match connected {
+                                true => WifiState::Connected(wifi_configuration.ssid.to_string()),
+                                false => WifiState::Connecting
+                            }
+                            Err(_) => WifiState::NotConnected
+                        }
+                    }
+                },
             }
-            else {
-                self.should_wait_touch = true;
+        };
+
+        if self.phone_data.wifi_state != wifi_state {
+            match wifi_state {
+                WifiState::Connected(_) if self.phone_data.ntp.is_none() => {
+                    let ntp = EspSntp::new_default()?;
+                    while ntp.get_sync_status() != SyncStatus::Completed {}
+                    self.phone_data.ntp = Some(ntp);
+                }
+                _ => self.phone_data.ntp = None,
             }
 
-            self.current_events = current_events;
+            self.phone_data.wifi_state = wifi_state;
         }
+
+        Ok(())
     }
 }

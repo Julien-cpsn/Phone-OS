@@ -1,14 +1,19 @@
-use crate::events::AppEvent;
+use crate::events::{AppEvent, EventType};
 use crate::phone::PhoneData;
 use mousefood::prelude::{Frame, Rect};
 use std::any::Any;
+use async_trait::async_trait;
 use log::info;
 use crate::state::PhoneState;
 
-pub trait App: Any {
+#[derive(Debug)]
+pub struct ClickableArea(pub Rect, pub Box<dyn AppEvent>);
+
+#[async_trait]
+pub trait App: Any + Send + Sync {
     fn new_boxed() -> Box<dyn App> where Self: Sized;
     fn app_name(&self) -> &'static str;
-    fn render(&mut self, app_accessible: &mut PhoneData, frame: &mut Frame, area: Rect) -> anyhow::Result<Vec<(Rect, Box<dyn AppEvent>)>>;
+    fn render(&mut self, app_accessible: &mut PhoneData, frame: &mut Frame, area: Rect) -> anyhow::Result<EventType>;
 
     fn handle_event(&mut self, app_accessible: &mut PhoneData, event: &Box<dyn AppEvent>) -> anyhow::Result<Option<PhoneState>>;
 }
@@ -17,17 +22,22 @@ pub struct AppImpl<T: AppHandler> {
     inner: T,
 }
 
+unsafe impl<T: AppHandler + Send + 'static> Send for AppImpl<T> {}
+unsafe impl<T: AppHandler + Send + 'static> Sync for AppImpl<T> {}
+
 // This is a new trait that handles specific event types
+#[async_trait]
 pub trait AppHandler: Any {
     type Event: AppEvent;
 
     fn new() -> Self where Self: Sized;
     fn app_name(&self) -> &'static str;
-    fn render(&mut self, app_accessible: &mut PhoneData, frame: &mut Frame, area: Rect) -> anyhow::Result<Vec<(Rect, Box<dyn AppEvent>)>>;
+    fn render(&mut self, app_accessible: &mut PhoneData, frame: &mut Frame, area: Rect) -> anyhow::Result<EventType>;
     fn handle_event(&mut self, app_accessible: &mut PhoneData, event: &Self::Event) -> anyhow::Result<Option<PhoneState>>;
 }
 
-impl<T: AppHandler + 'static> App for AppImpl<T> {
+#[async_trait]
+impl<T: AppHandler + Send + 'static> App for AppImpl<T> {
     fn new_boxed() -> Box<dyn App> where Self: Sized {
         Box::new(AppImpl {
             inner: T::new(),
@@ -38,7 +48,7 @@ impl<T: AppHandler + 'static> App for AppImpl<T> {
         self.inner.app_name()
     }
 
-    fn render(&mut self, app_accessible: &mut PhoneData, frame: &mut Frame, area: Rect) -> anyhow::Result<Vec<(Rect, Box<dyn AppEvent>)>> {
+    fn render(&mut self, app_accessible: &mut PhoneData, frame: &mut Frame, area: Rect) -> anyhow::Result<EventType> {
         self.inner.render(app_accessible, frame, area)
     }
 

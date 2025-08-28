@@ -8,18 +8,18 @@ pub mod apps;
 use display_interface_spi::SPIInterface;
 use esp_idf_svc::eventloop::{EspSystemEventLoop};
 use esp_idf_svc::hal::delay::Ets;
-use esp_idf_svc::hal::gpio::PinDriver;
+use esp_idf_svc::hal::gpio::{AnyInputPin, PinDriver};
 use esp_idf_svc::hal::modem::{Modem};
 use esp_idf_svc::hal::prelude::Peripherals;
-use esp_idf_svc::hal::spi::{SpiDeviceDriver, SpiDriverConfig};
-use esp_idf_svc::hal::spi::config::{Config, MODE_0};
+use esp_idf_svc::hal::spi::{Dma, SpiConfig, SpiDeviceDriver, SpiDriverConfig};
+use esp_idf_svc::hal::spi::config::MODE_0;
 use esp_idf_svc::hal::units::{MegaHertz};
 use esp_idf_svc::nvs::{EspDefaultNvsPartition};
 use esp_idf_svc::wifi::{ClientConfiguration, Configuration, EspWifi};
 use ili9341::{DisplaySize240x320, Ili9341, Orientation};
 use log::info;
 use mousefood::prelude::*;
-use crate::drivers::ft6206::FT6206;
+use crate::drivers::ft6206::{FT6206};
 use crate::phone::Phone;
 
 // Make sure large allocations go to PSRAM
@@ -45,21 +45,25 @@ fn main() -> anyhow::Result<()> {
     let rst = PinDriver::output(peripherals.pins.gpio4)?;
     let dc = PinDriver::output(peripherals.pins.gpio2)?;
     let sclk = peripherals.pins.gpio18;
-    let sdi = peripherals.pins.gpio19; // MISO
+    //let sdi = peripherals.pins.gpio19; // MISO
     let sda = peripherals.pins.gpio23; // MOSI
     let cs = peripherals.pins.gpio12;
 
-    let spi_config = Config::new()
-        .baudrate(MegaHertz::from(33).into())
-        .data_mode(MODE_0);
+    let spi_config = SpiConfig::new()
+        .baudrate(MegaHertz::from(40).into())
+        .data_mode(MODE_0)
+        .write_only(true);
+
+    let spi_driver_config = SpiDriverConfig::new()
+        .dma(Dma::Channel2(16384));
 
     let spi_device = SpiDeviceDriver::new_single(
         spi,
         sclk,
         sda,
-        Some(sdi),
+        None::<AnyInputPin>,
         Some(cs),
-        &SpiDriverConfig::new(),
+        &spi_driver_config,
         &spi_config
     )?;
 
@@ -81,7 +85,7 @@ fn main() -> anyhow::Result<()> {
         DisplaySize240x320,
     ).unwrap();
 
-    let mut touch_controller = FT6206::new(i2c, sda_i2c, scl)?;
+    let touch_controller = FT6206::new(i2c, sda_i2c, scl)?;
 
     /* ===== TUI ===== */
 
@@ -95,7 +99,7 @@ fn main() -> anyhow::Result<()> {
     let wifi = init_wifi(peripherals.modem, sysloop, nvs_default_partition)?;
 
     phone.phone_data.wifi = Some(wifi);
-    phone.event_loop(&mut terminal, &mut touch_controller)?;
+    phone.event_loop(terminal, touch_controller)?;
 
     Ok(())
 }

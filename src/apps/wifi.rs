@@ -1,5 +1,5 @@
-use crate::apps::app::AppHandler;
-use crate::events::{AppEvent, CoreEvent};
+use crate::apps::app::{AppHandler, ClickableArea};
+use crate::events::{CoreEvent, EventType};
 use crate::phone::PhoneData;
 use crate::state::PhoneState;
 use crate::ui::widgets::clickable_button::BorderedButton;
@@ -41,7 +41,7 @@ impl AppHandler for WifiApp {
         "WiFi settings"
     }
 
-    fn render(&mut self, phone_data: &mut PhoneData, frame: &mut Frame, area: Rect) -> anyhow::Result<Vec<(Rect, Box<dyn AppEvent>)>> {
+    fn render(&mut self, phone_data: &mut PhoneData, frame: &mut Frame, area: Rect) -> anyhow::Result<EventType> {
         let go_back_rect = Rect {
             x: area.x,
             y: area.y,
@@ -49,40 +49,56 @@ impl AppHandler for WifiApp {
             height: 1,
         };
 
-        let events: Vec<(Rect, Box<dyn AppEvent>)> = match self.state {
+        let inner_area = Rect {
+            x: area.x + 1,
+            y: area.y,
+            width: area.width - 2,
+            height: area.height,
+        };
+
+        let events = match self.state {
             WifiAppState::Scanning => {
                 let scanning = Line::raw("Scanning...").centered().dark_gray();
                 let scanning_rect = Rect {
-                    x: area.x,
-                    y: area.y + 2,
-                    width: area.width,
+                    x: inner_area.x,
+                    y: inner_area.y + 2,
+                    width: inner_area.width,
                     height: 1,
                 };
                 frame.render_widget(scanning, scanning_rect);
 
-                vec![
-                    (Rect::default(), Box::new(WifiEvent::Scan))
-                ]
+                return Ok(EventType::Auto(Box::new(WifiEvent::Scan)));
             },
             WifiAppState::DisplayingNetworks => {
                 let go_back = Line::raw("← Go back").left_aligned().dark_gray();
                 frame.render_widget(go_back, go_back_rect);
 
-                let mut events: Vec<(Rect, Box<dyn AppEvent>)> = vec![
-                    (go_back_rect, Box::new(CoreEvent::GoBackToHomepage))
+                let aps = Line::raw("Access points")
+                    .bold()
+                    .centered();
+                let aps_rect = Rect {
+                    x: inner_area.x,
+                    y: inner_area.y + 2,
+                    width: inner_area.width,
+                    height: 1,
+                };
+                frame.render_widget(aps, aps_rect);
+
+                let mut events = vec![
+                    ClickableArea(go_back_rect, Box::new(CoreEvent::GoBackToHomepage))
                 ];
 
                 for (index, ap) in self.access_points.iter().enumerate() {
                     let ap_span = BorderedButton(ap.ssid.as_str());
                     let rect = Rect {
-                        x: area.x,
-                        y: area.y + 2 + (3 * index as u16),
-                        width: area.width,
+                        x: inner_area.x,
+                        y: inner_area.y + 4 + (3 * index as u16),
+                        width: inner_area.width,
                         height: 3,
                     };
                     frame.render_widget(ap_span, rect);
 
-                    events.push((rect, Box::new(WifiEvent::TypePassword(index))));
+                    events.push(ClickableArea(rect, Box::new(WifiEvent::TypePassword(index))));
                 }
 
                 events
@@ -91,41 +107,44 @@ impl AppHandler for WifiApp {
                 let go_back = Line::raw("← Go back").left_aligned().dark_gray();
                 frame.render_widget(go_back, go_back_rect);
 
-                let ap_name = Line::raw(self.access_points[index].ssid.as_str()).centered();
+                let ap_name = Line::raw(self.access_points[index].ssid.as_str())
+                    .bold()
+                    .centered();
                 let ap_name_rect = Rect {
-                    x: area.x,
-                    y: area.y + 2,
-                    width: area.width,
+                    x: inner_area.x,
+                    y: inner_area.y + 2,
+                    width: inner_area.width,
                     height: 1,
                 };
                 frame.render_widget(ap_name, ap_name_rect);
 
-                let password = Paragraph::new(phone_data.keyboard.as_ref().unwrap().text.clone()).block(Block::bordered());
+                let password = Paragraph::new(phone_data.keyboard.as_ref().unwrap().text.clone())
+                    .block(Block::bordered());
                 let password_rect = Rect {
-                    x: area.x,
-                    y: area.y + 4,
-                    width: area.width,
+                    x: inner_area.x,
+                    y: inner_area.y + 4,
+                    width: inner_area.width,
                     height: 3,
                 };
                 frame.render_widget(password, password_rect);
 
-                let connect = Paragraph::new("Connect").centered().block(Block::bordered());
+                let connect = BorderedButton("Connect");
                 let connect_rect = Rect {
-                    x: area.x,
-                    y: area.y + 4 + 3,
-                    width: area.width,
+                    x: inner_area.x,
+                    y: inner_area.y + 4 + 3,
+                    width: inner_area.width,
                     height: 3,
                 };
                 frame.render_widget(connect, connect_rect);
 
                 vec![
-                    (go_back_rect, Box::new(WifiEvent::DisplayNetworks)),
-                    (connect_rect, Box::new(WifiEvent::Connect(index))),
+                    ClickableArea(go_back_rect, Box::new(WifiEvent::DisplayNetworks)),
+                    ClickableArea(connect_rect, Box::new(WifiEvent::Connect(index))),
                 ]
             }
         };
 
-        Ok(events)
+        Ok(EventType::List(events))
     }
 
     fn handle_event(&mut self, phone_data: &mut PhoneData, event: &WifiEvent) -> anyhow::Result<Option<PhoneState>> {

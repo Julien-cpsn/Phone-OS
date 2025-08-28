@@ -1,18 +1,17 @@
-use crate::events::AppEvent;
-use crate::phone::Phone;
+use crate::events::EventType;
+use crate::phone::{Phone, WifiState};
 use crate::state::PhoneState;
-use mousefood::prelude::{Color, Constraint, Frame, Layout, Line, Position, Rect, Span, Stylize};
+use mousefood::prelude::{Color, Frame, Line, Position, Rect, Span, Stylize};
 use mousefood::ratatui::widgets::{Block, Borders};
+use std::time::SystemTime;
 
-impl Phone<'_> {
-    pub fn draw(&mut self, frame: &mut Frame) -> anyhow::Result<Vec<(Rect, Box<dyn AppEvent>)>> {
+impl Phone {
+    pub fn draw(&mut self, frame: &mut Frame) -> anyhow::Result<EventType> {
         let area = frame.area();
-        let state_bar_layout = Rect {
-            x: area.x,
-            y: area.y,
-            width: area.width,
-            height: 1
-        };
+
+        // Emulated screen debugging purpose
+        frame.render_widget(Block::new().bg(Color::Rgb(15, 15, 15)), area);
+
         let content_layout = Rect {
             x: area.x,
             y: area.y + 1,
@@ -27,7 +26,7 @@ impl Phone<'_> {
             height: area.height.saturating_sub(2)
         };
 
-        self.render_state_bar(frame, state_bar_layout);
+        self.render_state_bar(frame);
 
         let content_block = Block::new()
             .borders(Borders::TOP)
@@ -41,20 +40,16 @@ impl Phone<'_> {
         };
 
         if self.phone_data.keyboard.is_some() {
-            if let Ok(mut events) = events {
-                let keyboard_layout = Rect {
-                    x: area.x,
-                    y: area.height.saturating_sub(12),
-                    width: area.width,
-                    height: 12
-                };
-
-                let keyboard_events = self.phone_data.keyboard.as_ref().unwrap().render(frame, keyboard_layout);
-                events.extend(keyboard_events);
-                Ok(events)
-            }
-            else {
-                events
+            match events {
+                Ok(event_type) => match event_type {
+                    EventType::List(mut events) => {
+                        let keyboard_events = self.phone_data.keyboard.as_ref().unwrap().render(frame);
+                        events.extend(keyboard_events);
+                        Ok(EventType::List(events))
+                    }
+                    _ => Ok(event_type)
+                },
+                Err(_) => events
             }
         }
         else {
@@ -62,58 +57,54 @@ impl Phone<'_> {
         }
     }
 
-    fn render_state_bar(&self, frame: &mut Frame, area: Rect) {
-        let state_bar_layout = Layout::horizontal(vec![
-            Constraint::Percentage(50),
-            Constraint::Percentage(50),
-        ])
-            .split(area);
+    pub fn render_state_bar(&self, frame: &mut Frame) {
+        let state_rect = Rect {
+            x: 0,
+            y: 0,
+            width: 17,
+            height: 1,
+        };
+
+        let time_rect = Rect {
+            x: 17,
+            y: 0,
+            width: 5,
+            height: 1,
+        };
+
+        let wifi_rect = Rect {
+            x: 22,
+            y: 0,
+            width: 18,
+            height: 1,
+        };
 
         let state_text = match self.state {
             PhoneState::Homepage => "PhoneOS",
             PhoneState::InApp(index) => self.apps[index].app_name(),
         };
         
-        let state_span = Span::raw(state_text).into_left_aligned_line();
+        let state_line = Line::raw(state_text).left_aligned();
 
-        enum WifiState {
-            NotInitialized,
-            NotConnected,
-            Connecting,
-            Connected(String),
-        }
+        let time = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap();
+        let seconds = time.as_secs();
+        let minutes = seconds / 60;
+        let hours = minutes / 60;
+        let time_string = format!("{:02}:{:02}", hours % 24, minutes % 60);
+        let time_line = Line::raw(time_string).centered().dark_gray();
 
-        let wifi_state = match &self.phone_data.wifi {
-            None => WifiState::NotInitialized,
-            Some(wifi) => match wifi.get_configuration() {
-                Err(_) => WifiState::NotConnected,
-                Ok(wifi_configuration) => match wifi_configuration.as_client_conf_ref() {
-                    None => WifiState::NotConnected,
-                    Some(wifi_configuration) => match wifi_configuration.ssid.is_empty() {
-                        true => WifiState::NotConnected,
-                        false => match wifi.is_connected() {
-                            Ok(connected) => match connected {
-                                true => WifiState::Connected(wifi_configuration.ssid.to_string()),
-                                false => WifiState::Connecting
-                            }
-                            Err(_) => WifiState::NotConnected
-                        }
-                    }
-                },
-            }
+        let (wifi_state_text, color) = match &self.phone_data.wifi_state {
+            WifiState::NotInitialized => ("Not initialized", Color::Red),
+            WifiState::NotConnected => ("Not connected", Color::Red),
+            WifiState::Connecting => ("Connecting", Color::Yellow),
+            WifiState::Connected(text) => (text.as_str(), Color::Green)
         };
 
-        let (wifi_state_text, color) = match wifi_state {
-            WifiState::NotInitialized => (String::from("Not initialized"), Color::Red),
-            WifiState::NotConnected => (String::from("Not connected"), Color::Red),
-            WifiState::Connecting => (String::from("Connecting"), Color::Yellow),
-            WifiState::Connected(text) => (text, Color::Green)
-        };
+        let wifi_line = Line::raw(wifi_state_text).right_aligned().fg(color);
 
-        let wifi_span = Line::raw(&wifi_state_text).right_aligned().fg(color);
-
-        frame.render_widget(state_span, state_bar_layout[0]);
-        frame.render_widget(wifi_span, state_bar_layout[1]);
+        frame.render_widget(state_line, state_rect);
+        frame.render_widget(time_line, time_rect);
+        frame.render_widget(wifi_line, wifi_rect);
     }
 
     pub fn render_touch_marker(&mut self, frame: &mut Frame, touch: Position) {

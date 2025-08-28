@@ -4,26 +4,51 @@ Big WIP
 
 ## Features
 
-- [x] main interface
-- [x] touch buttons
-- [x] wifi
-- [x] app template
-- [x] touch keyboard widget
-- [ ] apps T_T (plz halp)
+- Core
+  - [x] Async events/UI
+  - [x] Synchronized world time
+  - [ ] persistent storage with an SD card
+  - [ ] battery percentage
+- Widgets
+  - [x] touch buttons
+  - [x] touch keyboard
+    - Layouts
+      - [ ] Qwerty
+      - [x] Azerty
+      - [x] Symbols 1
+      - [x] Symbols 2
+- Apps
+  - [x] app template
+  - [x] wifi settings
+    - [x] AP scan
+    - [x] Type password
+  - [ ] Todo list
+  - [ ] Clock
+  - [ ] Weather
+  - [ ] Messaging apps
 
 ## Hardware
 
-- esp32 devkit c
+- esp32 devkit C v4
   - flash size: 16Mb
   - psram size: 4Mb
 - ili9341 capacitive touch (ft6206 driver)
 
-## Examples
+## Apps
 
-Apps
+### Home
 
-![](./demo/apps.png)
+![](./demo/home.png)
 
-Wifi settings
+### Wifi settings
 
 ![](./demo/wifi.png)
+
+
+## Build
+
+See `shell.nix` for needed dependencies.
+
+```shell
+cargo build
+```

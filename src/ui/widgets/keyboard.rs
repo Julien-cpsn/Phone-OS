@@ -1,10 +1,12 @@
-use crate::events::AppEvent;
+use crate::apps::app::{ClickableArea};
+use crate::drivers::ili9341::{HEIGHT, WIDTH};
 use crate::phone::PhoneData;
-use mousefood::prelude::Color::{DarkGray, White};
-use mousefood::prelude::{Frame, Rect, Stylize, Widget};
+use crate::ui::widgets::keyboard::KeyboardEvent::*;
+use mousefood::prelude::{Color, Frame, Rect, Stylize};
 use mousefood::ratatui::widgets::{Block, Paragraph};
 use once_cell::sync::Lazy;
-use crate::ui::widgets::keyboard::KeyboardEvent::*;
+
+pub const KEYBOARD_HEIGHT: u16 = 12;
 
 static AZERTY: Lazy<[Vec<(&'static str, KeyboardEvent, u16)>;4]> = Lazy::new(|| [
     vec![("a", Letter('a'), 0), ("z", Letter('z'), 3), ("e", Letter('e'), 6), ("r", Letter('r'), 9), ("t", Letter('t'), 12), ("y", Letter('y'), 15), ("u", Letter('u'), 18), ("i", Letter('i'), 21), ("o", Letter('o'), 24), ("p", Letter('p'), 27)],
@@ -27,6 +29,17 @@ static SYMBOLS_2: Lazy<[Vec<(&'static str, KeyboardEvent, u16)>;4]> = Lazy::new(
     vec![("?123", Symbols(SymbolLevel::None), 0), ("<", Letter('<'), 6), ("          ", Letter('x'), 9), (">", Letter('>'), 21), ("ENTER", Enter, 24)],
 ]);
 
+static AZERTY_EVENTS: Lazy<Vec<PreRenderedParagraph>> = Lazy::new(|| prerender_layout(&*AZERTY, false));
+static AZERTY_MAJ_EVENTS: Lazy<Vec<PreRenderedParagraph>> = Lazy::new(|| prerender_layout(&*AZERTY, true));
+static SYMBOLS_1_EVENTS: Lazy<Vec<PreRenderedParagraph>> = Lazy::new(|| prerender_layout(&*SYMBOLS_1, false));
+static SYMBOLS_2_EVENTS: Lazy<Vec<PreRenderedParagraph>> = Lazy::new(|| prerender_layout(&*SYMBOLS_2, false));
+
+struct PreRenderedParagraph<'a> {
+    pub paragraph: Paragraph<'a>,
+    pub area: Rect,
+    pub event: Box<KeyboardEvent>
+}
+
 #[derive(Debug, Clone)]
 pub struct Keyboard {
     pub text: String,
@@ -41,7 +54,7 @@ pub enum KeyboardLayout {
     Azerty
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum KeyboardEvent {
     Letter(char),
     Maj,
@@ -51,7 +64,7 @@ pub enum KeyboardEvent {
     None
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum SymbolLevel {
     None,
     First,
@@ -68,41 +81,29 @@ impl KeyboardEvent {
 }
 
 impl Keyboard {
-    pub fn render(&self, frame: &mut Frame, area: Rect) -> Vec<(Rect, Box<dyn AppEvent>)> {
-        let mut events: Vec<(Rect, Box<dyn AppEvent>)> = Vec::new();
+    pub fn render(&self, frame: &mut Frame) -> Vec<ClickableArea> {
+        let mut events = Vec::new();
 
-        let keyboard_layout = match self.symbols {
+        let pre_rendered_keyboard = match self.symbols {
             SymbolLevel::None => match self.layout {
-                KeyboardLayout::Azerty => &*AZERTY
+                KeyboardLayout::Azerty => match self.maj {
+                    false => &*AZERTY_EVENTS,
+                    true => &*AZERTY_MAJ_EVENTS,
+                }
             },
-            SymbolLevel::First => &*SYMBOLS_1,
-            SymbolLevel::Second => &*SYMBOLS_2
+            SymbolLevel::First => &*SYMBOLS_1_EVENTS,
+            SymbolLevel::Second => &*SYMBOLS_2_EVENTS
         };
 
-        for (row_index, row) in keyboard_layout.iter().enumerate() {
-            for (text, event, x) in row {
-                let (text,event) = match event {
-                    Enter if self.hide_enter => (text.to_string(), None),
-                    _ => match self.maj {
-                        true => (text.to_ascii_uppercase(), event.maj_letter()),
-                        false => (text.to_string(), *event)
-                    }
-                };
+        for pre_rendered_paragraph in pre_rendered_keyboard {
+            let (paragraph, event) = match self.hide_enter && *pre_rendered_paragraph.event == Enter {
+                true => (pre_rendered_paragraph.paragraph.clone().fg(Color::DarkGray), Box::new(None)),
+                false => (pre_rendered_paragraph.paragraph.clone(), pre_rendered_paragraph.event.clone())
+            };
 
-                let rect = Rect {
-                    x: area.x + 4 + x,
-                    y: area.y + (row_index as u16 * 3),
-                    width: 2 + text.chars().count() as u16,
-                    height: 3,
-                };
+            frame.render_widget(paragraph, pre_rendered_paragraph.area);
 
-                let paragraph = Paragraph::new(text)
-                    .fg(White)
-                    .block(Block::bordered().fg(DarkGray));
-
-                paragraph.render(rect, frame.buffer_mut());
-                events.push((rect, Box::new(event)))
-            }
+            events.push(ClickableArea(pre_rendered_paragraph.area, event));
         }
 
         events
@@ -125,7 +126,7 @@ impl Keyboard {
     }
 }
 
-impl PhoneData<'_> {
+impl PhoneData {
     pub fn display_keyboard(&mut self, layout: KeyboardLayout, hide_enter: bool) {
         self.keyboard = Some(Keyboard {
             text: String::new(),
@@ -139,4 +140,43 @@ impl PhoneData<'_> {
     pub fn hide_keyboard(&mut self) {
         self.keyboard = Option::None;
     }
+}
+
+fn prerender_layout(keyboard_layout: &[Vec<(&'static str, KeyboardEvent, u16)>; 4], uppercase: bool) -> Vec<PreRenderedParagraph<'static>> {
+    let area = Rect {
+        x: 0,
+        y: HEIGHT - KEYBOARD_HEIGHT,
+        width: WIDTH,
+        height: KEYBOARD_HEIGHT,
+    };
+
+    let mut pre_rendered = Vec::new();
+
+    for (row_index, row) in keyboard_layout.iter().enumerate() {
+        for (text, event, x) in row {
+            let (text, event) = match uppercase {
+                true => (text.to_ascii_uppercase(), event.maj_letter()),
+                false => (text.to_string(), event.clone())
+            };
+
+            let rect = Rect {
+                x: area.x + 4 + x,
+                y: area.y + (row_index as u16 * 3),
+                width: 2 + text.chars().count() as u16,
+                height: 3,
+            };
+
+            let paragraph = Paragraph::new(text)
+                .fg(Color::White)
+                .block(Block::bordered().fg(Color::DarkGray));
+
+            pre_rendered.push(PreRenderedParagraph {
+                paragraph,
+                area: rect,
+                event: Box::new(event)
+            });
+        }
+    }
+
+    pre_rendered
 }

@@ -20,8 +20,9 @@ display-interface-spi = "0.5.0"
 ili9341 = "0.6.0"
 
 anyhow = "1.0.99"
-strum = { version = "0.27.2", default-features = false, features = ["std", "derive"]}
 once_cell = "1.21.3"
+async-trait = "0.1.89"
+crossbeam-channel = "0.5.15"
 heapless = "0.8.0"
 
 [build-dependencies]

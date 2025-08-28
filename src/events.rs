@@ -1,36 +1,54 @@
 use std::any::Any;
 use std::fmt::{Debug};
+use async_trait::async_trait;
 use log::info;
 use mousefood::prelude::{Position};
-use crate::drivers::ft6206::TouchPoint;
+use crate::apps::app::{ClickableArea};
+use crate::drivers::ft6206::{TouchEvent, TouchPoint};
+use crate::drivers::ili9341::{HEIGHT, WIDTH};
 use crate::phone::Phone;
 use crate::state::PhoneState;
 use crate::ui::widgets::keyboard::{KeyboardEvent};
 
-const WIDTH: u16 = 40;
-const HEIGHT: u16 = 32;
-
-pub trait AppEvent: Any + Debug {
+#[async_trait]
+pub trait AppEvent: Any + Debug + Send + Sync {
     fn as_any(&self) -> &dyn Any;
 }
 
-impl<T: Any + Debug> AppEvent for T {
+#[async_trait]
+impl<T: Any + Debug + Send + Sync> AppEvent for T {
     fn as_any(&self) -> &dyn Any {
         self
     }
 }
 
 #[derive(Debug)]
-pub enum CoreEvent {
-    GoBackToHomepage,
-    LaunchWifiSettings
+pub enum EventType {
+    List(Vec<ClickableArea>),
+    Auto(Box<dyn AppEvent>),
 }
 
-impl Phone<'_> {
-    pub fn format_events(&mut self, events: &Vec<TouchPoint>) -> Option<Position> {
-        if let Some(event) = events.first() {
-            let mut x = WIDTH - (event.x * WIDTH / 240);
-            let mut y = HEIGHT - 1 - (event.y * HEIGHT / 320);
+impl Default for EventType {
+    fn default() -> Self {
+        Self::List(Vec::new())
+    }
+}
+
+#[derive(Debug)]
+pub enum CoreEvent {
+    GoBackToHomepage,
+    LaunchApp(usize)
+}
+
+impl Phone {
+    pub fn format_touches(&self, touches: &Vec<TouchPoint>) -> Option<Position> {
+        if let Some(touch) = touches.first() {
+            if touch.event != Some(TouchEvent::Press) {
+                return None;
+            } 
+            
+            let mut x = WIDTH - (touch.x * WIDTH / 240);
+            let mut y = HEIGHT - 1 - (touch.y * HEIGHT / 320);
 
             if x >= WIDTH {
                 x = WIDTH - 1;
@@ -45,21 +63,32 @@ impl Phone<'_> {
         }
     }
     
-    pub fn handle_touch(&mut self, touch: Position) -> anyhow::Result<()> {
-        for (area, event) in &self.current_events {
+    pub fn handle_touch(&mut self, touch: Position, clickable_areas: &Vec<ClickableArea>) -> anyhow::Result<Option<PhoneState>> {
+        let mut touch_succeeded = false;
+
+        for clickable_area in clickable_areas {
+            let area = &clickable_area.0;
+            let event = &clickable_area.1;
+
             if area.contains(touch) {
-                if let Some(event) = event.as_ref().as_any().downcast_ref::<CoreEvent>() {
+                touch_succeeded = true;
+
+                let state = if let Some(event) = event.as_ref().as_any().downcast_ref::<CoreEvent>() {
                     info!("{:?}", event);
 
-                    match event {
-                        CoreEvent::GoBackToHomepage => self.state = PhoneState::Homepage,
-                        CoreEvent::LaunchWifiSettings => self.state = PhoneState::InApp(0),
-                    }
+                    let state = match event {
+                        CoreEvent::GoBackToHomepage => PhoneState::Homepage,
+                        CoreEvent::LaunchApp(index) => PhoneState::InApp(*index),
+                    };
+
+                    Some(state)
                 }
                 else if let Some(event) = event.as_ref().as_any().downcast_ref::<KeyboardEvent>() {
                     info!("{:?}", event);
 
                     self.phone_data.keyboard.as_mut().unwrap().handle_event(event);
+
+                    None
                 }
                 else {
                     let state = match self.state {
@@ -67,33 +96,26 @@ impl Phone<'_> {
                         _ => None
                     };
 
-                    if let Some(state) = state {
-                        self.state = state;
-                    }
+                    state
+                };
 
-                }
-            }
-            else {
-                info!("Missed {:?}", area);
+                return Ok(state);
             }
         }
-        
-        Ok(())
+
+        if !touch_succeeded {
+            info!("Missed {:?}", touch);
+        }
+
+        Ok(None)
     }
     
-    pub fn handle_first_event(&mut self) -> anyhow::Result<()> {
+    pub fn handle_auto_event(&mut self, event: &Box<dyn AppEvent>) -> anyhow::Result<Option<PhoneState>> {
         let state = match self.state {
-            PhoneState::InApp(index) => {
-                let event = &self.current_events[0].1;
-                self.apps[index].handle_event(&mut self.phone_data, event)?
-            },
+            PhoneState::InApp(index) => self.apps[index].handle_event(&mut self.phone_data, event)?,
             _ => None
         };
 
-        if let Some(state) = state {
-            self.state = state;
-        }
-        
-        Ok(())
+        Ok(state)
     }
 }
