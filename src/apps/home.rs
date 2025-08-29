@@ -5,7 +5,7 @@ use mousefood::prelude::{Color, Frame, Rect, Stylize};
 use mousefood::ratatui::widgets::{Block, Paragraph};
 use crate::apps::app::{ClickableArea};
 
-impl Phone {
+impl Phone<'_> {
     pub fn render_app_list(&self, frame: &mut Frame, area: Rect) -> anyhow::Result<EventType> {
         let inner_area = Rect {
             x: area.x + 1,

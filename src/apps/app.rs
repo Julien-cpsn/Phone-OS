@@ -13,9 +13,10 @@ pub struct ClickableArea(pub Rect, pub Box<dyn AppEvent>);
 pub trait App: Any + Send + Sync {
     fn new_boxed() -> Box<dyn App> where Self: Sized;
     fn app_name(&self) -> &'static str;
-    fn render(&mut self, app_accessible: &mut PhoneData, frame: &mut Frame, area: Rect) -> anyhow::Result<EventType>;
+    fn init(&mut self, phone_data: &mut PhoneData) -> anyhow::Result<()>;
+    fn render(&mut self, phone_data: &mut PhoneData, frame: &mut Frame, area: Rect) -> anyhow::Result<EventType>;
 
-    fn handle_event(&mut self, app_accessible: &mut PhoneData, event: &Box<dyn AppEvent>) -> anyhow::Result<Option<PhoneState>>;
+    fn handle_event(&mut self, phone_data: &mut PhoneData, event: &Box<dyn AppEvent>) -> anyhow::Result<Option<PhoneState>>;
 }
 
 pub struct AppImpl<T: AppHandler> {
@@ -32,8 +33,9 @@ pub trait AppHandler: Any {
 
     fn new() -> Self where Self: Sized;
     fn app_name(&self) -> &'static str;
-    fn render(&mut self, app_accessible: &mut PhoneData, frame: &mut Frame, area: Rect) -> anyhow::Result<EventType>;
-    fn handle_event(&mut self, app_accessible: &mut PhoneData, event: &Self::Event) -> anyhow::Result<Option<PhoneState>>;
+    fn init(&mut self, phone_data: &mut PhoneData) -> anyhow::Result<()>;
+    fn render(&mut self, phone_data: &mut PhoneData, frame: &mut Frame, area: Rect) -> anyhow::Result<EventType>;
+    fn handle_event(&mut self, phone_data: &mut PhoneData, event: &Self::Event) -> anyhow::Result<Option<PhoneState>>;
 }
 
 #[async_trait]
@@ -46,6 +48,10 @@ impl<T: AppHandler + Send + 'static> App for AppImpl<T> {
 
     fn app_name(&self) -> &'static str {
         self.inner.app_name()
+    }
+
+    fn init(&mut self, phone_data: &mut PhoneData) -> anyhow::Result<()> {
+        self.inner.init(phone_data)
     }
 
     fn render(&mut self, app_accessible: &mut PhoneData, frame: &mut Frame, area: Rect) -> anyhow::Result<EventType> {

@@ -16,8 +16,9 @@ codegen-units = 1 # Increase build time but increase optimisation. Default 16
 strip = true  # Automatically strip symbols from the binary
 
 [profile.dev]
-debug = true # Symbols are nice and they don't increase the size on Flash
 opt-level = 3
+lto = true
+strip = true
 
 [env]
 MCU="esp32"

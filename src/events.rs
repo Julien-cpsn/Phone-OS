@@ -40,7 +40,7 @@ pub enum CoreEvent {
     LaunchApp(usize)
 }
 
-impl Phone {
+impl Phone<'_> {
     pub fn format_touches(&self, touches: &Vec<TouchPoint>) -> Option<Position> {
         if let Some(touch) = touches.first() {
             if touch.event != Some(TouchEvent::Press) {
@@ -62,7 +62,8 @@ impl Phone {
             None
         }
     }
-    
+
+    #[allow(unused_assignments)]
     pub fn handle_touch(&mut self, touch: Position, clickable_areas: &Vec<ClickableArea>) -> anyhow::Result<Option<PhoneState>> {
         let mut touch_succeeded = false;
 

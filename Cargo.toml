@@ -12,12 +12,16 @@ harness = false # do not use the built in cargo test harness -> resolve rust-ana
 
 [dependencies]
 log = "0.4"
-esp-idf-svc = { version = "0.51", features = ["critical-section", "embassy-time-driver", "embassy-sync", "nightly"] }
+esp-idf-svc = { version = "0.51", features = ["critical-section", "embedded-storage", "embassy-time-driver", "embassy-sync", "experimental", "nightly"] }
+embedded-svc = { version = "0.28.1", features = ["use_serde"] }
 
 mousefood = "0.2.1"
 embedded-graphics = "0.8.1"
 display-interface-spi = "0.5.0"
 ili9341 = "0.6.0"
+
+serde = { version = "1.0.219", features = ["derive"] }
+serde_json = "1.0.143"
 
 anyhow = "1.0.99"
 once_cell = "1.21.3"

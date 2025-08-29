@@ -5,7 +5,7 @@ use mousefood::prelude::{Color, Frame, Line, Position, Rect, Span, Stylize};
 use mousefood::ratatui::widgets::{Block, Borders};
 use std::time::SystemTime;
 
-impl Phone {
+impl Phone<'_> {
     pub fn draw(&mut self, frame: &mut Frame) -> anyhow::Result<EventType> {
         let area = frame.area();
 

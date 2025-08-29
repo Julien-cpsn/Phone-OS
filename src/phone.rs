@@ -2,6 +2,11 @@ use std::thread;
 use std::thread::sleep;
 use std::time::Duration;
 use crossbeam_channel::bounded;
+use esp_idf_svc::fs::fatfs::{Fatfs};
+use esp_idf_svc::hal::sd::SdCardDriver;
+use esp_idf_svc::hal::sd::spi::SdSpiHostDriver;
+use esp_idf_svc::hal::spi::SpiDriver;
+use esp_idf_svc::io::vfs::MountedFatfs;
 use esp_idf_svc::sntp::{EspSntp, SyncStatus};
 use crate::apps::app::{App, AppImpl};
 use crate::apps::wifi::WifiApp;
@@ -13,11 +18,12 @@ use esp_idf_svc::wifi::EspWifi;
 use log::{info};
 use mousefood::prelude::{Backend, Frame, Terminal};
 
-pub struct Phone {
+pub struct Phone<'a> {
     pub state: PhoneState,
     pub should_wait_touch: bool,
     pub phone_data: PhoneData,
     pub apps: Vec<Box<dyn App + 'static>>,
+    pub fs: Option<MountedFatfs<Fatfs<SdCardDriver<SdSpiHostDriver<'a, SpiDriver<'a>>>>>>
 }
 
 pub struct PhoneData {
@@ -35,7 +41,7 @@ pub enum WifiState {
     Connected(String),
 }
 
-impl Phone {
+impl Phone<'_> {
     pub fn new() -> Self {
         Phone {
             state: PhoneState::Homepage,
@@ -49,7 +55,16 @@ impl Phone {
             apps: vec![
                 AppImpl::<WifiApp>::new_boxed()
             ],
+            fs: None,
         }
+    }
+
+    pub fn init(&mut self) -> anyhow::Result<()> {
+        for app in self.apps.iter_mut() {
+            app.init(&mut self.phone_data)?;
+        }
+
+        Ok(())
     }
 
     pub fn event_loop<B: Backend>(&mut self, mut terminal: Terminal<B>, mut touch_controller: FT6206) -> anyhow::Result<()> {
@@ -57,7 +72,7 @@ impl Phone {
 
         thread::spawn(move || {
             loop {
-                sleep(Duration::from_millis(15));
+                sleep(Duration::from_millis(20));
 
                 let touches = touch_controller.read_touches().unwrap();
 
@@ -106,7 +121,7 @@ impl Phone {
                 current_events = self.handle_draw(frame)
             })?;
 
-            sleep(Duration::from_millis(75));
+            sleep(Duration::from_millis(100));
         }
     }
     pub fn handle_draw(&mut self, frame: &mut Frame) -> Option<EventType> {

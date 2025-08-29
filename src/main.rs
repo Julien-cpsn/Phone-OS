@@ -7,14 +7,18 @@ pub mod apps;
 
 use display_interface_spi::SPIInterface;
 use esp_idf_svc::eventloop::{EspSystemEventLoop};
+use esp_idf_svc::fs::fatfs::Fatfs;
 use esp_idf_svc::hal::delay::Ets;
 use esp_idf_svc::hal::gpio::{AnyInputPin, PinDriver};
 use esp_idf_svc::hal::interrupt::InterruptType;
 use esp_idf_svc::hal::modem::{Modem};
 use esp_idf_svc::hal::prelude::{MegaHertz, Peripherals};
-use esp_idf_svc::hal::spi::{Dma, SpiConfig, SpiDeviceDriver, SpiDriverConfig};
+use esp_idf_svc::hal::sd::{SdCardConfiguration, SdCardDriver};
+use esp_idf_svc::hal::sd::spi::SdSpiHostDriver;
+use esp_idf_svc::hal::spi::{Dma, SpiConfig, SpiDeviceDriver, SpiDriver, SpiDriverConfig};
+use esp_idf_svc::io::vfs::MountedFatfs;
 use esp_idf_svc::nvs::{EspDefaultNvsPartition};
-use esp_idf_svc::wifi::{ClientConfiguration, Configuration, EspWifi, ScanMethod};
+use esp_idf_svc::wifi::{ClientConfiguration, Configuration, EspWifi};
 use ili9341::{DisplaySize240x320, Ili9341, Orientation};
 use log::info;
 use mousefood::prelude::*;
@@ -38,36 +42,69 @@ fn main() -> anyhow::Result<()> {
     let sysloop = EspSystemEventLoop::take()?;
     let nvs_default_partition = EspDefaultNvsPartition::take()?;
 
-    /* ===== SPI ===== */
+    /* ===== HSPI ===== */
 
-    let spi = peripherals.spi2;
+    let spi2 = peripherals.spi2;
     let rst = PinDriver::output(peripherals.pins.gpio4)?;
     let dc = PinDriver::output(peripherals.pins.gpio2)?;
-    let sclk = peripherals.pins.gpio18;
+    let sclk = peripherals.pins.gpio14;
     //let sdi = peripherals.pins.gpio19; // MISO
-    let sda = peripherals.pins.gpio23; // MOSI
-    let cs = peripherals.pins.gpio12;
+    let sda = peripherals.pins.gpio13; // MOSI
+    let cs = peripherals.pins.gpio15;
 
-    let spi_config = SpiConfig::new()
-        .baudrate(MegaHertz::from(60).into())
+    let hspi_config = SpiConfig::new()
+        .baudrate(MegaHertz::from(40).into())
         .write_only(true)
         .polling(false);
 
-    let spi_driver_config = SpiDriverConfig::new()
-        .dma(Dma::Channel2(32768))
-        .intr_flags(InterruptType::Level3 | InterruptType::Iram);
+    let hspi_driver_config = SpiDriverConfig::new()
+        .intr_flags(InterruptType::Level3.into());
 
-    let spi_device = SpiDeviceDriver::new_single(
-        spi,
+    let hspi_device = SpiDeviceDriver::new_single(
+        spi2,
         sclk,
         sda,
         None::<AnyInputPin>,
         Some(cs),
-        &spi_driver_config,
-        &spi_config
+        &hspi_driver_config,
+        &hspi_config
     )?;
 
-    let di = SPIInterface::new(spi_device, dc);
+    let di = SPIInterface::new(hspi_device, dc);
+
+    /* ===== VSPI ===== */
+
+    let spi3 = peripherals.spi3;
+    let sclk = peripherals.pins.gpio18;
+    let sdo = peripherals.pins.gpio19; // MISO
+    let sdi = peripherals.pins.gpio23; // MOSI
+    let cs = peripherals.pins.gpio5;
+
+    let vspi_driver_config = SpiDriverConfig::new()
+        .dma(Dma::Channel2(4096));
+
+    let vspi_driver = SpiDriver::new(
+        spi3,
+        sclk,
+        sdo,
+        Some(sdi),
+        &vspi_driver_config
+    )?;
+
+    let mut sdcard_configuration = SdCardConfiguration::new();
+    sdcard_configuration.speed_khz = 4_000;
+
+    let sd_card_driver = SdCardDriver::new_spi(
+        SdSpiHostDriver::new(
+            vspi_driver,
+            Some(cs), //None::<AnyOutputPin>,
+            None::<AnyInputPin>,
+            None::<AnyInputPin>,
+            None::<AnyInputPin>,
+            None,
+        )?,
+        &sdcard_configuration,
+    )?;
 
     /* ===== I2C ===== */
 
@@ -99,6 +136,14 @@ fn main() -> anyhow::Result<()> {
     let wifi = init_wifi(peripherals.modem, sysloop, nvs_default_partition)?;
 
     phone.phone_data.wifi = Some(wifi);
+
+    /* ===== SD Card ===== */
+
+    phone.fs = Some(MountedFatfs::mount(Fatfs::new_sdcard(0, sd_card_driver)?, "/sdcard", 10)?);
+
+    /* ===== Main loop ===== */
+
+    phone.init()?;
     phone.event_loop(terminal, touch_controller)?;
 
     Ok(())
@@ -111,8 +156,7 @@ fn init_wifi(modem: Modem, sysloop: EspSystemEventLoop, nvs_default_partition: E
         Some(nvs_default_partition),
     )?;
 
-    let mut client_config = ClientConfiguration::default();
-    client_config.scan_method = ScanMethod::FastScan;
+    let client_config = ClientConfiguration::default();
     let wifi_config = Configuration::Client(client_config);
     wifi.set_configuration(&wifi_config)?;
     wifi.start()?;

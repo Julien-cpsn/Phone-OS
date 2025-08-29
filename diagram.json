@@ -6,8 +6,8 @@
     {
       "type": "board-esp32-devkit-c-v4",
       "id": "esp",
-      "top": -300,
-      "left": -50,
+      "top": -316.8,
+      "left": -71.96,
       "attrs": { "flashSize": "16", "psramSize": "4" }
     },
     {
@@ -15,27 +15,36 @@
       "id": "lcd1",
       "top": -350,
       "left": -400,
-      "rotate": 0,
       "attrs": { "flipVertical": "0", "flipHorizontal": "1" }
+    },
+    {
+      "type": "wokwi-microsd-card",
+      "id": "sd1",
+      "top": -431.77,
+      "left": -307.13,
+      "attrs": {}
     }
   ],
   "connections": [
     [ "esp:TX", "$serialMonitor:RX", "", [] ],
     [ "esp:RX", "$serialMonitor:TX", "", [] ],
-    [ "esp:12", "lcd1:CS", "green", [ "h-48.18", "v59.43" ] ],
-    [ "esp:4", "lcd1:RST", "yellow", [ "v0" ] ],
-    [ "esp:2", "lcd1:D/C", "purple", [ "h-21.57", "v47.08" ] ],
-    [ "esp:18", "lcd1:SCK", "blue", [ "h39.74", "v-150.63", "h-211.92", "v-1.93" ] ],
-    [ "esp:19", "lcd1:MISO", "red", [ "h17.54", "v-98.17", "h-162.68", "v97.03" ] ],
-    [ "esp:23", "lcd1:MOSI", "white", [ "h25.67", "v-128.97", "h-182.01", "v129.83" ] ],
-    [ "esp:GND.1", "lcd1:GND", "black", [ "v-0.77", "h-35.66", "v130" ] ],
-    [ "esp:3V3.1", "lcd1:VCC", "limegreen", [ "h-28.99", "v115.64" ] ],
-    [ "esp:22", "lcd1:SCL", "yellow", [ "h48", "v163.2", "h192" ] ],
-    [ "esp:21", "lcd1:SDA", "cyan", [ "h38.4", "v144", "h211.2" ] ]
+    [ "esp:18", "sd1:SCK", "green", [ "h28.8", "v-182.39" ] ],
+    [ "esp:23", "sd1:DO", "orange", [ "h9.6", "v-134.4" ] ],
+    [ "esp:19", "sd1:DI", "gold", [ "h19.2", "v-153.6" ] ],
+    [ "esp:5", "sd1:CS", "gray", [ "h38.4", "v-163.2" ] ],
+    [ "esp:3V3", "sd1:VCC", "red", [ "h0.15", "v-96" ] ],
+    [ "esp:GND.2", "sd1:GND", "black", [ "v0" ] ],
+    [ "esp:13", "lcd1:MOSI", "gold", [ "h-124.65", "v144", "h-121.22" ] ],
+    [ "esp:12", "lcd1:MISO", "orange", [ "h-143.85", "v144", "h-73.22" ] ],
+    [ "esp:15", "lcd1:CS", "gray", [ "h9.6", "v163.2", "h-380.42" ] ],
+    [ "esp:14", "lcd1:SCK", "green", [ "h-134.25", "v163.2", "h-102.02" ] ],
+    [ "esp:3V3", "lcd1:VCC", "red", [ "h-105.45", "v326.4", "h-188.42" ] ],
+    [ "esp:GND.1", "lcd1:GND", "black", [ "h-115.05", "v192", "h-169.22" ] ],
+    [ "esp:2", "lcd1:D/C", "blue", [ "h19.2", "v153.6", "h-370.82" ] ],
+    [ "esp:4", "lcd1:RST", "#8f4814", [ "h28.8", "v182.4", "h-390.02" ] ],
+    [ "esp:22", "lcd1:SCL", "purple", [ "h48", "v230.4", "h-351.62" ] ],
+    [ "esp:21", "lcd1:SDA", "magenta", [ "h57.6", "v192", "h-345.6" ] ]
   ],
-  "serialMonitor": {
-    "display": "terminal",
-    "convertEol": true
-  },
+  "serialMonitor": { "display": "terminal", "convertEol": true },
   "dependencies": {}
 }
