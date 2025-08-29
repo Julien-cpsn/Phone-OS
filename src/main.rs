@@ -9,13 +9,12 @@ use display_interface_spi::SPIInterface;
 use esp_idf_svc::eventloop::{EspSystemEventLoop};
 use esp_idf_svc::hal::delay::Ets;
 use esp_idf_svc::hal::gpio::{AnyInputPin, PinDriver};
+use esp_idf_svc::hal::interrupt::InterruptType;
 use esp_idf_svc::hal::modem::{Modem};
-use esp_idf_svc::hal::prelude::Peripherals;
+use esp_idf_svc::hal::prelude::{MegaHertz, Peripherals};
 use esp_idf_svc::hal::spi::{Dma, SpiConfig, SpiDeviceDriver, SpiDriverConfig};
-use esp_idf_svc::hal::spi::config::MODE_0;
-use esp_idf_svc::hal::units::{MegaHertz};
 use esp_idf_svc::nvs::{EspDefaultNvsPartition};
-use esp_idf_svc::wifi::{ClientConfiguration, Configuration, EspWifi};
+use esp_idf_svc::wifi::{ClientConfiguration, Configuration, EspWifi, ScanMethod};
 use ili9341::{DisplaySize240x320, Ili9341, Orientation};
 use log::info;
 use mousefood::prelude::*;
@@ -25,7 +24,7 @@ use crate::phone::Phone;
 // Make sure large allocations go to PSRAM
 #[link_section = ".psram"]
 #[allow(unused)]
-static mut PSRAM_BUFFER: [u8; 153600] = [0; 153600];
+static mut PSRAM_BUFFER: [u8; 4_194_304] = [0; 4_194_304];
 
 fn main() -> anyhow::Result<()> {
     esp_idf_svc::sys::link_patches();
@@ -50,12 +49,13 @@ fn main() -> anyhow::Result<()> {
     let cs = peripherals.pins.gpio12;
 
     let spi_config = SpiConfig::new()
-        .baudrate(MegaHertz::from(40).into())
-        .data_mode(MODE_0)
-        .write_only(true);
+        .baudrate(MegaHertz::from(60).into())
+        .write_only(true)
+        .polling(false);
 
     let spi_driver_config = SpiDriverConfig::new()
-        .dma(Dma::Channel2(16384));
+        .dma(Dma::Channel2(32768))
+        .intr_flags(InterruptType::Level3 | InterruptType::Iram);
 
     let spi_device = SpiDeviceDriver::new_single(
         spi,
@@ -111,7 +111,9 @@ fn init_wifi(modem: Modem, sysloop: EspSystemEventLoop, nvs_default_partition: E
         Some(nvs_default_partition),
     )?;
 
-    let wifi_config = Configuration::Client(ClientConfiguration::default());
+    let mut client_config = ClientConfiguration::default();
+    client_config.scan_method = ScanMethod::FastScan;
+    let wifi_config = Configuration::Client(client_config);
     wifi.set_configuration(&wifi_config)?;
     wifi.start()?;
 

@@ -57,14 +57,14 @@ impl Phone {
 
         thread::spawn(move || {
             loop {
+                sleep(Duration::from_millis(15));
+
                 let touches = touch_controller.read_touches().unwrap();
 
                 if !touches.is_empty() {
                     touch_sender.send(touches).unwrap();
-                    sleep(Duration::from_millis(75));
+                    sleep(Duration::from_millis(150));
                 }
-
-                sleep(Duration::from_millis(25));
             }
         });
 
@@ -106,7 +106,7 @@ impl Phone {
                 current_events = self.handle_draw(frame)
             })?;
 
-            sleep(Duration::from_millis(100));
+            sleep(Duration::from_millis(75));
         }
     }
     pub fn handle_draw(&mut self, frame: &mut Frame) -> Option<EventType> {

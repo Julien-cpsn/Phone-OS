@@ -10,14 +10,14 @@ rustflags = [ "--cfg",  "espidf_time64"]
 build-std = ["std", "panic_abort"]
 
 [profile.release]
-opt-level = "z"
+opt-level = 3
 lto = true # Enable Link Time Optimization
 codegen-units = 1 # Increase build time but increase optimisation. Default 16
 strip = true  # Automatically strip symbols from the binary
 
 [profile.dev]
 debug = true # Symbols are nice and they don't increase the size on Flash
-opt-level = "z"
+opt-level = 3
 
 [env]
 MCU="esp32"
