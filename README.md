@@ -7,7 +7,7 @@ Big WIP
 - Core
   - [x] Async events/UI
   - [x] Synchronized world time
-  - [ ] persistent storage with an SD card
+  - [x] persistent storage with an SD card
   - [ ] battery percentage
 - Widgets
   - [x] touch buttons
@@ -22,6 +22,7 @@ Big WIP
   - [x] wifi settings
     - [x] AP scan
     - [x] Type password
+    - [x] Auto-connect to known wifis
   - [ ] Todo list
   - [ ] Clock
   - [ ] Weather
